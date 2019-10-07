@@ -29,7 +29,7 @@ def train(sdim, optimizer, hps):
     train_set = datasets.ImageNet(root='data', split='train', download=True, transform=transform)
     train_loader = DataLoader(dataset=train_set, batch_size=hps.n_batch_train, shuffle=True)
 
-    test_set = datasets.ImageNet(root='data', split='val', download=False, transform=transform)
+    test_set = datasets.ImageNet(root='data', split='val', download=True, transform=transform)
     test_loader = DataLoader(dataset=test_set, batch_size=hps.n_batch_test, shuffle=False)
 
     # dataset = get_dataset(data_name=hps.problem, train=True)
@@ -103,10 +103,10 @@ if __name__ == '__main__':
                         default='./logs', help="Location to save logs")
 
     # Dataset hyperparams:
-    parser.add_argument("--problem", type=str, default='cifar10',
+    parser.add_argument("--problem", type=str, default='imagenet',
                         help="Problem (mnist/fashion/cifar10")
     parser.add_argument("--n_classes", type=int,
-                        default=10, help="number of classes of dataset.")
+                        default=1000, help="number of classes of dataset.")
     parser.add_argument("--data_dir", type=str, default='data',
                         help="Location of data")
 
