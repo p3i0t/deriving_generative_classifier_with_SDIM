@@ -23,8 +23,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Trains ResNeXt on CIFAR',
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     # Positional arguments
-    parser.add_argument('data_path', type=str, help='Root for the Cifar dataset.')
-    parser.add_argument('dataset', type=str, choices=['cifar10', 'cifar100'], help='Choose between Cifar10/100.')
+    parser.add_argument('--data_path', type=str, default='data', help='Root for the Cifar dataset.')
+    parser.add_argument('--dataset', type=str, default='cifar10', choices=['cifar10', 'cifar100'], help='Choose between Cifar10/100.')
     # Optimization options
     parser.add_argument('--epochs', '-e', type=int, default=300, help='Number of epochs to train.')
     parser.add_argument('--batch_size', '-b', type=int, default=128, help='Batch size.')
@@ -55,6 +55,7 @@ if __name__ == '__main__':
     use_cuda = not args.no_cuda and torch.cuda.is_available()
 
     args.device = torch.device("cuda" if use_cuda else "cpu")
+    print('device: ', args.device)
 
     mean = [x / 255 for x in [125.3, 123.0, 113.9]]
     std = [x / 255 for x in [63.0, 62.1, 66.7]]
@@ -96,6 +97,7 @@ if __name__ == '__main__':
     optimizer = torch.optim.SGD(net.parameters(), lr=args.learning_rate, momentum=args.momentum,
                                 weight_decay=args.decay, nesterov=True)
 
+    #optimizer = torch.optim.Adam(net.parameters(), lr=1e-3)
     best_train_loss = np.inf
 
     # train function (forward, backward, update)
@@ -140,6 +142,7 @@ if __name__ == '__main__':
                 param_group['lr'] = args.learning_rate
 
         train_loss = train()
+        print('Epoch: {}, training loss: {:.4f}.'.format(epoch + 1, train_loss))
         test_accuracy = test()
         if train_loss > best_train_loss:
             save_name = 'ResNeXt{}_{}x{}d.pth'.format(args.depth, args.cardinality, args.base_width)
