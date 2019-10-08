@@ -23,22 +23,22 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Trains ResNeXt on CIFAR',
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     # Positional arguments
-    parser.add_argument('data_path', type=str, help='Root for the Cifar dataset.')
-    parser.add_argument('dataset', type=str, choices=['cifar10', 'cifar100'], help='Choose between Cifar10/100.')
+    parser.add_argument('--data_path', type=str, help='Root for the Cifar dataset.')
+    parser.add_argument('--dataset', type=str, choices=['cifar10', 'cifar100'], help='Choose between Cifar10/100.')
     # Optimization options
-    parser.add_argument('--epochs', '-e', type=int, default=300, help='Number of epochs to train.')
-    parser.add_argument('--batch_size', '-b', type=int, default=128, help='Batch size.')
+    parser.add_argument('--epochs', type=int, default=300, help='Number of epochs to train.')
+    parser.add_argument('--batch_size', type=int, default=128, help='Batch size.')
     parser.add_argument('--learning_rate', '-lr', type=float, default=0.1, help='The Learning Rate.')
-    parser.add_argument('--momentum', '-m', type=float, default=0.9, help='Momentum.')
-    parser.add_argument('--decay', '-d', type=float, default=0.0005, help='Weight decay (L2 penalty).')
-    parser.add_argument('--test_bs', type=int, default=10)
+    parser.add_argument('--momentum', type=float, default=0.9, help='Momentum.')
+    parser.add_argument('--decay', type=float, default=0.0005, help='Weight decay (L2 penalty).')
+    parser.add_argument('--test_batch_size', type=int, default=100)
     parser.add_argument('--schedule', type=int, nargs='+', default=[150, 225],
                         help='Decrease learning rate at these epochs.')
     parser.add_argument('--gamma', type=float, default=0.1, help='LR is multiplied by gamma on schedule.')
     # Checkpoints
-    parser.add_argument('--save', '-s', type=str, default='./', help='Folder to save checkpoints.')
-    parser.add_argument('--load', '-l', type=str, help='Checkpoint path to resume / test.')
-    parser.add_argument('--test', '-t', action='store_true', help='Test only flag.')
+    parser.add_argument('--save',  type=str, default='./logs', help='Folder to save checkpoints.')
+    parser.add_argument('--load',  type=str, default='./logs', help='Checkpoint path to resume / test.')
+
     # Architecture
     parser.add_argument('--depth', type=int, default=29, help='Model depth.')
     parser.add_argument('--cardinality', type=int, default=8, help='Model cardinality (group).')
@@ -72,11 +72,11 @@ if __name__ == '__main__':
     if args.dataset == 'cifar10':
         train_data = dset.CIFAR10(args.data_path, train=True, transform=train_transform, download=True)
         test_data = dset.CIFAR10(args.data_path, train=False, transform=test_transform, download=True)
-        nlabels = 10
+        n_classes = 10
     else:
         train_data = dset.CIFAR100(args.data_path, train=True, transform=train_transform, download=True)
         test_data = dset.CIFAR100(args.data_path, train=False, transform=test_transform, download=True)
-        nlabels = 100
+        n_classes = 100
     train_loader = torch.utils.data.DataLoader(train_data, batch_size=args.batch_size, shuffle=True,
                                                num_workers=args.prefetch, pin_memory=True)
     test_loader = torch.utils.data.DataLoader(test_data, batch_size=args.test_bs, shuffle=False,
@@ -87,7 +87,7 @@ if __name__ == '__main__':
         os.makedirs(args.save)
 
     # Init model, criterion, and optimizer
-    net = CifarResNeXt(args.cardinality, args.depth, nlabels, args.base_width, args.widen_factor).to(args.device)
+    net = CifarResNeXt(args.cardinality, args.depth, n_classes, args.base_width, args.widen_factor).to(args.device)
     print(net)
 
     if use_cuda and args.n_gpu > 1:
@@ -97,6 +97,7 @@ if __name__ == '__main__':
                                 weight_decay=args.decay, nesterov=True)
 
     best_train_loss = np.inf
+    best_accuracy = 0.
 
     # train function (forward, backward, update)
     def train():
@@ -142,6 +143,7 @@ if __name__ == '__main__':
         train_loss = train()
         test_accuracy = test()
         if train_loss > best_train_loss:
+            best_accuracy = test_accuracy
             save_name = 'ResNeXt{}_{}x{}d.pth'.format(args.depth, args.cardinality, args.base_width)
             torch.save(net.state_dict(), os.path.join(args.save, save_name))
         print("Best accuracy: {:.4f}".format(test_accuracy))
