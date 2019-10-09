@@ -18,14 +18,15 @@ import torchvision.datasets as dset
 import torchvision.transforms as transforms
 from models_cifar10 import CifarResNeXt
 from sdim import SDIM
+from utils import get_dataset, cal_parameters
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Trains ResNeXt on CIFAR',
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     # Positional arguments
-    parser.add_argument('--data_path', type=str, help='Root for the Cifar dataset.')
-    parser.add_argument('--dataset', type=str, choices=['cifar10', 'cifar100'], help='Choose between Cifar10/100.')
+    parser.add_argument('--data_path', type=str, default='data', help='Root for the Cifar dataset.')
+    parser.add_argument('--dataset', type=str, default='cifar10', choices=['cifar10', 'cifar100'], help='Choose between Cifar10/100.')
 
     # Optimization options
     parser.add_argument('--epochs', type=int, default=300, help='Number of epochs to train.')
@@ -92,7 +93,7 @@ if __name__ == '__main__':
         args.n_classes = 100
     train_loader = torch.utils.data.DataLoader(train_data, batch_size=args.batch_size, shuffle=True,
                                                num_workers=args.prefetch, pin_memory=True)
-    test_loader = torch.utils.data.DataLoader(test_data, batch_size=args.test_bs, shuffle=False,
+    test_loader = torch.utils.data.DataLoader(test_data, batch_size=args.test_batch_size, shuffle=False,
                                               num_workers=args.prefetch, pin_memory=True)
 
     # Init checkpoints
@@ -100,12 +101,12 @@ if __name__ == '__main__':
         os.makedirs(args.save)
 
     # Init model, criterion, and optimizer
-    classifier = CifarResNeXt(args.cardinality, args.depth, n_classes, args.base_width, args.widen_factor).to(args.device)
-    print(classifier)
+    classifier = CifarResNeXt(args.cardinality, args.depth, args.n_classes, args.base_width, args.widen_factor).to(args.device)
+    print('# classifier parameters: ', cal_parameters(classifier))
 
+    classifier.train()
     save_name = 'ResNeXt{}_{}x{}d.pth'.format(args.depth, args.cardinality, args.base_width)
-    model_state = torch.load(os.path.join(args.save, save_name))
-    classifier.load_state_dict(model_state)
+    classifier.load_state_dict(torch.load(os.path.join(args.save, save_name)))
 
     sdim = SDIM(disc_classifier=classifier, rep_size=args.rep_size, mi_units=args.mi_units, n_classes=args.n_classes).to(args.device)
 

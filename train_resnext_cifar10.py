@@ -17,6 +17,7 @@ import torch.nn.functional as F
 import torchvision.datasets as dset
 import torchvision.transforms as transforms
 from models_cifar10 import CifarResNeXt
+from utils import get_dataset, cal_parameters
 
 
 if __name__ == '__main__':
@@ -80,7 +81,7 @@ if __name__ == '__main__':
         n_classes = 100
     train_loader = torch.utils.data.DataLoader(train_data, batch_size=args.batch_size, shuffle=True,
                                                num_workers=args.prefetch, pin_memory=True)
-    test_loader = torch.utils.data.DataLoader(test_data, batch_size=args.test_bs, shuffle=False,
+    test_loader = torch.utils.data.DataLoader(test_data, batch_size=args.test_batch_size, shuffle=False,
                                               num_workers=args.prefetch, pin_memory=True)
 
     # Init checkpoints
@@ -89,7 +90,7 @@ if __name__ == '__main__':
 
     # Init model, criterion, and optimizer
     net = CifarResNeXt(args.cardinality, args.depth, n_classes, args.base_width, args.widen_factor).to(args.device)
-    print(net)
+    print('# classifier parameters: ', cal_parameters(net))
 
     if use_cuda and args.n_gpu > 1:
         net = torch.nn.DataParallel(net, device_ids=list(range(args.n_gpu)))
@@ -144,9 +145,9 @@ if __name__ == '__main__':
 
         train_loss = train()
         print('Epoch: {}, training loss: {:.4f}.'.format(epoch + 1, train_loss))
-        test_accuracy = test()
-        if train_loss > best_train_loss:
-            best_accuracy = test_accuracy
+        if train_loss < best_train_loss:
             save_name = 'ResNeXt{}_{}x{}d.pth'.format(args.depth, args.cardinality, args.base_width)
             torch.save(net.state_dict(), os.path.join(args.save, save_name))
-        print("Best accuracy: {:.4f}".format(test_accuracy))
+
+        test_accuracy = test()
+        print("Test accuracy: {:.4f}".format(test_accuracy))
