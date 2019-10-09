@@ -21,6 +21,18 @@ from sdim import SDIM
 from utils import get_dataset, cal_parameters
 
 
+def clean_state_dict(state_dict):
+    # see https://discuss.pytorch.org/t/solved-keyerror-unexpected-key-module-encoder-embedding-weight-in-state-dict/1686/3
+    from collections import OrderedDict
+    new_state_dict = OrderedDict()
+    for k, v in state_dict.items():
+        assert k.startswith('module.')
+        name = k[7:]  # remove `module.`
+        new_state_dict[name] = v
+    # load params
+    return new_state_dict
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Trains ResNeXt on CIFAR',
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -104,9 +116,8 @@ if __name__ == '__main__':
     classifier = CifarResNeXt(args.cardinality, args.depth, args.n_classes, args.base_width, args.widen_factor).to(args.device)
     print('# classifier parameters: ', cal_parameters(classifier))
 
-    classifier.train()
     save_name = 'ResNeXt{}_{}x{}d.pth'.format(args.depth, args.cardinality, args.base_width)
-    classifier.load_state_dict(torch.load(os.path.join(args.save, save_name)))
+    classifier.load_state_dict(clean_state_dict(torch.load(os.path.join(args.save, save_name))))
 
     sdim = SDIM(disc_classifier=classifier, rep_size=args.rep_size, mi_units=args.mi_units, n_classes=args.n_classes).to(args.device)
 

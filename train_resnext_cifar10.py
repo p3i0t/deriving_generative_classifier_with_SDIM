@@ -137,6 +137,18 @@ if __name__ == '__main__':
         return test_accuracy
 
 
+    def clean_state_dict(state_dict):
+        # see https://discuss.pytorch.org/t/solved-keyerror-unexpected-key-module-encoder-embedding-weight-in-state-dict/1686/3
+        from collections import OrderedDict
+        new_state_dict = OrderedDict()
+        for k, v in state_dict.items():
+            assert k.startswith('module.')
+            name = k[7:]  # remove `module.`
+            new_state_dict[name] = v
+        # load params
+        return new_state_dict
+
+
     for epoch in range(args.epochs):
         if epoch in args.schedule:
             args.learning_rate *= args.gamma
@@ -147,7 +159,8 @@ if __name__ == '__main__':
         print('Epoch: {}, training loss: {:.4f}.'.format(epoch + 1, train_loss))
         if train_loss < best_train_loss:
             save_name = 'ResNeXt{}_{}x{}d.pth'.format(args.depth, args.cardinality, args.base_width)
-            torch.save(net.state_dict(), os.path.join(args.save, save_name))
+
+            torch.save(clean_state_dict(net.state_dict()), os.path.join(args.save, save_name))
 
         test_accuracy = test()
         print("Test accuracy: {:.4f}".format(test_accuracy))
