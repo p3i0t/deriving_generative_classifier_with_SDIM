@@ -126,7 +126,7 @@ class SDIM(torch.nn.Module):
 
     def eval_losses(self, x, y, measure='JSD', mode='fd'):
         out_list = self.disc_classifier(x, full_list=True)
-        rep = self.feature_transformer(out_list[0])
+        rep = self.feature_transformer(out_list[-1])
         feature = out_list[self.task_idx]
         L, G = self._T(feature, rep)
 
