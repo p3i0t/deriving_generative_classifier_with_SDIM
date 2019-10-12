@@ -92,7 +92,7 @@ class SDIM(torch.nn.Module):
 
         local_size = 1024
 
-        self.feature_transformer = FeatureTransformer(local_size, self.rep_size)
+        self.feature_transformer = FeatureTransformer(self.n_classes, self.rep_size)
         self.task_idx = 3
 
 
