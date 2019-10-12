@@ -79,7 +79,7 @@ class FeatureTransformer(nn.Module):
 
 
 class SDIM(torch.nn.Module):
-    def __init__(self, disc_classifier, rep_size=64, n_classes=1000, mi_units=512, margin=10.):
+    def __init__(self, disc_classifier, rep_size=64, n_classes=1000, mi_units=512, margin=5.):
         super().__init__()
         self.disc_classifier = disc_classifier
         self.disc_classifier.requires_grad_(requires_grad=False)  # shut down grad on pre-trained classifier.
@@ -140,13 +140,13 @@ class SDIM(torch.nn.Module):
         # compute nll loss
         nll_loss = -(ll * pos_mask).sum(dim=1).mean()
 
-        pos_ll = torch.masked_select(ll, pos_mask.byte())
-        neg_ll = torch.masked_select(ll, (1 - pos_mask).byte())
+        pos_ll = torch.masked_select(ll, pos_mask.bool())
+        neg_ll = torch.masked_select(ll, (1 - pos_mask).bool())
         assert pos_ll.size(0) == x.size(0)
         gap_ll = pos_ll.unsqueeze(dim=1) - neg_ll
 
         # log-likelihood margin loss
-        ll_margin = F.relu(self.margin - gap_ll).pow(2).mean()
+        ll_margin = F.relu(self.margin - gap_ll).mean()
 
         # total loss
         loss = mi_loss + nll_loss + ll_margin

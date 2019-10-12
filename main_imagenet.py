@@ -26,10 +26,10 @@ def train(sdim, optimizer, hps):
     transform = transforms.Compose([transforms.ToTensor(),
                                     transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])])
 
-    train_set = datasets.ImageNet(root='data', split='train', download=True, transform=transform)
+    train_set = datasets.ImageNet(root='~/data', split='train', download=True, transform=transform)
     train_loader = DataLoader(dataset=train_set, batch_size=hps.n_batch_train, shuffle=True)
 
-    test_set = datasets.ImageNet(root='data', split='val', download=True, transform=transform)
+    test_set = datasets.ImageNet(root='~/data', split='val', download=True, transform=transform)
     test_loader = DataLoader(dataset=test_set, batch_size=hps.n_batch_test, shuffle=False)
 
     # dataset = get_dataset(data_name=hps.problem, train=True)
