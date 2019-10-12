@@ -91,9 +91,9 @@ class SDIM(torch.nn.Module):
         self.margin = margin
 
         self.feature_transformer = FeatureTransformer(self.n_classes, self.rep_size)
-        # self.task_idx = (2, -1)
+        self.task_idx = 3
 
-        local_size = n_classes
+        local_size = 1024
 
         # 1x1 conv performed on only channel dimension
         self.local_MInet = MI1x1ConvNet(local_size, self.mi_units)
@@ -124,8 +124,9 @@ class SDIM(torch.nn.Module):
         return L, G
 
     def eval_losses(self, x, y, measure='JSD', mode='fd'):
-        feature = self.disc_classifier(x)
-        rep = self.feature_transformer(feature)
+        out_list = self.disc_classifier(x, full_list=True)
+        rep = self.feature_transformer(out_list[0])
+        feature = out_list[self.task_idx]
         L, G = self._T(feature, rep)
 
         # compute mutual infomation loss

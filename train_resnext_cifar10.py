@@ -98,7 +98,6 @@ if __name__ == '__main__':
     optimizer = torch.optim.SGD(net.parameters(), lr=args.learning_rate, momentum=args.momentum,
                                 weight_decay=args.decay, nesterov=True)
 
-    #optimizer = torch.optim.Adam(net.parameters(), lr=1e-3)
     best_train_loss = np.inf
     best_accuracy = 0.
 
