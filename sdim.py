@@ -90,10 +90,11 @@ class SDIM(torch.nn.Module):
         self.mi_units = mi_units
         self.margin = margin
 
-        self.feature_transformer = FeatureTransformer(self.n_classes, self.rep_size)
+        local_size = 1024
+
+        self.feature_transformer = FeatureTransformer(local_size, self.rep_size)
         self.task_idx = 3
 
-        local_size = 1024
 
         # 1x1 conv performed on only channel dimension
         self.local_MInet = MI1x1ConvNet(local_size, self.mi_units)
