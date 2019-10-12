@@ -113,7 +113,6 @@ class SDIM(torch.nn.Module):
         # All globals are reshaped as 1x1 feature maps.
         global_size = G.size()[1:]
         if len(global_size) == 1:
-            L = L[:, :, None, None]
             G = G[:, :, None, None]
 
         L = self.local_MInet(L)
