@@ -52,13 +52,20 @@ def train(sdim, optimizer, hps):
     if not os.path.exists(logdir):
         os.mkdir(logdir)
 
-    transform = transforms.Compose([transforms.ToTensor(),
-                                    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])])
+    train_transform = transforms.Compose([transforms.RandomSizedCrop(224),
+                                          transforms.RandomHorizontalFlip(),
+                                          transforms.ToTensor(),
+                                          transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])])
 
-    train_set = datasets.ImageNet(root='~/data', split='train', download=True, transform=transform)
+    test_transform = transforms.Compose([transforms.Resize(256),
+                                         transforms.CenterCrop(224),
+                                         transforms.ToTensor(),
+                                         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])])
+
+    train_set = datasets.ImageNet(root='~/data', split='train', download=True, transform=train_transform)
     train_loader = DataLoader(dataset=train_set, batch_size=hps.n_batch_train, shuffle=True)
 
-    test_set = datasets.ImageNet(root='~/data', split='val', download=True, transform=transform)
+    test_set = datasets.ImageNet(root='~/data', split='val', download=True, transform=test_transform)
     test_loader = DataLoader(dataset=test_set, batch_size=hps.n_batch_test, shuffle=False)
 
     # dataset = get_dataset(data_name=hps.problem, train=True)
