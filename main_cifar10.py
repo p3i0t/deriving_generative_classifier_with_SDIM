@@ -184,7 +184,12 @@ if __name__ == '__main__':
         if train_loss > best_train_loss:
             best_accuracy = test_accuracy
             save_name = 'SDIM_ResNeXt{}_{}x{}d.pth'.format(args.depth, args.cardinality, args.base_width)
-            torch.save(sdim.state_dict(), os.path.join(args.save, save_name))
+            if use_cuda and args.n_gpu > 1:
+                state = sdim.module.state_dict()
+            else:
+                state = sdim.state_dict()
+
+            torch.save(state, os.path.join(args.save, save_name))
         print("Best accuracy: {:.4f}".format(test_accuracy))
 
 
