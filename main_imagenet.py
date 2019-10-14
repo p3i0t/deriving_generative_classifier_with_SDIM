@@ -36,10 +36,12 @@ class wrapped_model(torch.nn.Module):
         return out_list
 
 
-def get_model(model_name='resnext101_32x8d'):
+def get_model(model_name='resnext50_32x4d'):
     if model_name == 'resnext101_32x8d':
-        m = models.resnext101_32x8d(pretrained=True).to(hps.device)
-
+        m = models.resnext101_32x8d(pretrained=True)
+    elif model_name == 'resnext101_32x8d':
+        m = models.resnext50_32x4d(pretrained=True)
+    print('Model name: {}, # parameters: {}'.format(model_name, cal_parameters(m)))
     return wrapped_model(m)
 
 
@@ -191,8 +193,7 @@ if __name__ == '__main__':
 
     hps.device = torch.device("cuda" if use_cuda else "cpu")
 
-    hps.classifier_name = 'resnext101_32x8d'
-    m = models.resnext101_32x8d(pretrained=True).to(hps.device)
+    m = get_model(model_name='resnext50_32x4d').to(hps.device)
     m = wrapped_model(m)
     sdim = SDIM(disc_classifier=m, rep_size=hps.rep_size, mi_units=hps.mi_units, n_classes=hps.n_classes).to(hps.device)
 
