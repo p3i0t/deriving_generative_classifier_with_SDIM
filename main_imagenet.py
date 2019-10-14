@@ -82,6 +82,7 @@ def train(sdim, optimizer, hps):
         nll_list = []
         margin_list = []
 
+        print('===> Epoch: {}'.format(epoch))
         for batch_id, (x, y) in enumerate(train_loader):
             x = x.to(hps.device)
             y = y.to(hps.device)
@@ -91,13 +92,14 @@ def train(sdim, optimizer, hps):
             loss, mi_loss, nll_loss, ll_margin = sdim.eval_losses(x, y)
             loss.backward()
             optimizer.step()
+            if batch_id % 1000 == 1:
+                print('batch_id: ', batch_id)
 
             loss_list.append(loss.item())
             mi_list.append(mi_loss.item())
             nll_list.append(nll_loss.item())
             margin_list.append(ll_margin.item())
 
-        print('===> Epoch: {}'.format(epoch))
         print('loss: {:.4f}, mi: {:.4f}, nll: {:.4f}, ll_margin: {:.4f}'.format(
             np.mean(loss_list),
             np.mean(mi_list),
