@@ -79,7 +79,7 @@ class FeatureTransformer(nn.Module):
 
 
 class SDIM(torch.nn.Module):
-    def __init__(self, disc_classifier, rep_size=64, n_classes=1000, mi_units=512, margin=5.):
+    def __init__(self, disc_classifier, rep_size=64, n_classes=1000, mi_units=512, margin=4.):
         super().__init__()
         self.disc_classifier = disc_classifier
         self.disc_classifier.requires_grad_(requires_grad=False)  # shut down grad on pre-trained classifier.
@@ -150,7 +150,7 @@ class SDIM(torch.nn.Module):
         ll_margin = F.relu(self.margin - gap_ll).mean()
 
         # total loss
-        loss = mi_loss + nll_loss + ll_margin
+        loss = mi_loss + 0.1 * nll_loss + 0.1 * ll_margin
         return loss, mi_loss, nll_loss, ll_margin
 
     def forward(self, x, log_softmax=False):
