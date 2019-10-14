@@ -14,6 +14,35 @@ from utils import get_dataset, cal_parameters
 import torchvision.transforms as transforms
 
 
+class wrapped_model(torch.nn.Module):
+    """
+    Wrap a torch Module to return a list of last conv activation and logit activation.
+    """
+    def __init__(self, m):
+        super().__init__()
+        self.f_conv = torch.nn.Sequential(*list(m.children())[:-2])
+        self.pooling = list(m.children())[-2]
+        self.l = list(m.children())[-1]
+
+    def forward(self, x):
+        out_list = []
+        out = self.f_conv(x)
+        out_list.append(out)
+
+        out = self.pooling(out)
+        out = torch.squeeze(torch.squeeze(out, dim=3), dim=2)
+        out = self.l(out)
+        out_list.append(out)
+        return out_list
+
+
+def get_model(model_name='resnext101_32x8d'):
+    if model_name == 'resnext101_32x8d':
+        m = models.resnext101_32x8d(pretrained=True).to(hps.device)
+
+    return wrapped_model(m)
+
+
 def train(sdim, optimizer, hps):
     torch.manual_seed(hps.seed)
     np.random.seed(hps.seed)
@@ -155,6 +184,7 @@ if __name__ == '__main__':
 
     hps.classifier_name = 'resnext101_32x8d'
     m = models.resnext101_32x8d(pretrained=True).to(hps.device)
+    m = wrapped_model(m)
     sdim = SDIM(disc_classifier=m, rep_size=hps.rep_size, mi_units=hps.mi_units, n_classes=hps.n_classes).to(hps.device)
 
     optimizer = Adam(filter(lambda param: param.requires_grad is True, sdim.parameters()), lr=hps.lr)

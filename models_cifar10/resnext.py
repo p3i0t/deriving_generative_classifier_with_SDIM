@@ -122,23 +122,18 @@ class CifarResNeXt(nn.Module):
                                                    self.widen_factor))
         return block
 
-    def forward(self, x, full_list=False):
+    def forward(self, x):
         out_list = []
         x = self.conv_1_3x3.forward(x)
         x = F.relu(self.bn_1.forward(x), inplace=True)
-        out_list.append(x)
         x = self.stage_1.forward(x)
-        out_list.append(x)
         x = self.stage_2.forward(x)
-        out_list.append(x)
         x = self.stage_3.forward(x)
         out_list.append(x)
+
         x = F.avg_pool2d(x, 8, 1)
         x = x.view(-1, self.stages[3])
         x = self.classifier(x)
         out_list.append(x)
 
-        if full_list is True:
-            return out_list
-        else:
-            return out_list[-1]
+        return out_list
