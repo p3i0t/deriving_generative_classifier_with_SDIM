@@ -39,7 +39,7 @@ class wrapped_model(torch.nn.Module):
 def get_model(model_name='resnext50_32x4d'):
     if model_name == 'resnext101_32x8d':
         m = models.resnext101_32x8d(pretrained=True)
-    elif model_name == 'resnext101_32x8d':
+    elif model_name == 'resnext50_32x4d':
         m = models.resnext50_32x4d(pretrained=True)
     print('Model name: {}, # parameters: {}'.format(model_name, cal_parameters(m)))
     return wrapped_model(m)
