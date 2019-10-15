@@ -90,7 +90,7 @@ def train(sdim, optimizer, hps):
             loss, mi_loss, nll_loss, ll_margin = sdim.eval_losses(x, y)
             loss.backward()
             optimizer.step()
-            if batch_id % 1000 == 1:
+            if batch_id % 500 == 1:
                 print('batch_id: ', batch_id)
 
             loss_list.append(loss.item())
@@ -189,7 +189,8 @@ if __name__ == '__main__':
 
     hps.device = torch.device("cuda" if use_cuda else "cpu")
 
-    m = get_model(model_name='resnext50_32x4d').to(hps.device)
+    hps.classifier_name = 'resnext50_32x4d'
+    m = get_model(model_name=hps.classifier_name).to(hps.device)
     m = wrapped_model(m)
     sdim = SDIM(disc_classifier=m, rep_size=hps.rep_size, mi_units=hps.mi_units, n_classes=hps.n_classes).to(hps.device)
 
