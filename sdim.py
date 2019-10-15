@@ -155,8 +155,8 @@ class SDIM(torch.nn.Module):
         return loss, mi_loss, nll_loss, ll_margin
 
     def forward(self, x, log_softmax=False):
-        feature = self.disc_classifier(x)
-        rep = self.feature_transformer(feature)
+        out_list = self.disc_classifier(x)
+        rep = self.feature_transformer(out_list[-1])
         log_lik = self.class_conditional(rep)
         if log_softmax:
             return F.log_softmax(log_lik, dim=-1)
