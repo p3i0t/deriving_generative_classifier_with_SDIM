@@ -96,8 +96,11 @@ def train(sdim, optimizer, hps):
 
             loss.backward()
             optimizer.step()
+
             if batch_id % 500 == 1:
                 print('batch_id: ', batch_id)
+            if batch_id == 1000:
+                break
 
             loss_list.append(loss.item())
             mi_list.append(mi_loss.item())
