@@ -144,7 +144,11 @@ if __name__ == '__main__':
             # backward
             optimizer.zero_grad()
 
-            loss, mi_loss, nll_loss, ll_margin = sdim.eval_losses(x, y)
+            if use_cuda and args.n_gpu > 1:
+                f_forward = sdim.module.eval_losses
+            else:
+                f_forward = sdim.eval_losses
+            loss, mi_loss, nll_loss, ll_margin = f_forward(x, y)
             loss.backward()
             optimizer.step()
 

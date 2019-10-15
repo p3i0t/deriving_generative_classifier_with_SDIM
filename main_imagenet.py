@@ -54,7 +54,7 @@ def train(sdim, optimizer, hps):
     if not os.path.exists(logdir):
         os.mkdir(logdir)
 
-    train_transform = transforms.Compose([transforms.RandomSizedCrop(224),
+    train_transform = transforms.Compose([transforms.RandomResizedCrop(224),
                                           transforms.RandomHorizontalFlip(),
                                           transforms.ToTensor(),
                                           transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])])
@@ -87,7 +87,12 @@ def train(sdim, optimizer, hps):
 
             optimizer.zero_grad()
 
-            loss, mi_loss, nll_loss, ll_margin = sdim.eval_losses(x, y)
+            if use_cuda and hps.n_gpu > 1:
+                f_forward = sdim.module.eval_losses
+            else:
+                f_forward = sdim.eval_losses
+            loss, mi_loss, nll_loss, ll_margin = f_forward(x, y)
+
             loss.backward()
             optimizer.step()
             if batch_id % 500 == 1:
