@@ -91,6 +91,7 @@ def train(sdim, optimizer, hps):
                 f_forward = sdim.module.eval_losses
             else:
                 f_forward = sdim.eval_losses
+
             loss, mi_loss, nll_loss, ll_margin = f_forward(x, y)
 
             loss.backward()
@@ -109,6 +110,7 @@ def train(sdim, optimizer, hps):
             np.mean(nll_list),
             np.mean(margin_list)
         ))
+
         if np.mean(loss_list) < min_loss:
             min_loss = np.mean(loss_list)
             model_path = 'sdim_{}_{}_d{}.pth'.format(hps.classifier_name, hps.problem, hps.rep_size)
@@ -116,16 +118,15 @@ def train(sdim, optimizer, hps):
 
         sdim.eval()
         # Evaluate accuracy on test set.
-        if epoch > 10:
-            acc_list = []
-            for batch_id, (x, y) in enumerate(test_loader):
-                x = x.to(hps.device)
-                y = y.to(hps.device)
+        acc_list = []
+        for batch_id, (x, y) in enumerate(test_loader):
+            x = x.to(hps.device)
+            y = y.to(hps.device)
 
-                preds = sdim(x).argmax(dim=1)
-                acc = (preds == y).float().mean()
-                acc_list.append(acc.item())
-            print('Test accuracy: {:.3f}'.format(np.mean(acc_list)))
+            preds = sdim(x).argmax(dim=1)
+            acc = (preds == y).float().mean()
+            acc_list.append(acc.item())
+        print('Test accuracy: {:.3f}'.format(np.mean(acc_list)))
 
 
 if __name__ == '__main__':
@@ -153,7 +154,7 @@ if __name__ == '__main__':
 
     # Optimization hyperparams:
     parser.add_argument("--n_batch_train", type=int,
-                        default=128, help="Minibatch size")
+                        default=256, help="Minibatch size")
     parser.add_argument("--n_batch_test", type=int,
                         default=200, help="Minibatch size")
     parser.add_argument("--optimizer", type=str,
@@ -174,7 +175,7 @@ if __name__ == '__main__':
 
     # Model hyperparams:
     parser.add_argument("--image_size", type=int,
-                        default=32, help="Image size")
+                        default=224, help="Image size")
     parser.add_argument("--mi_units", type=int,
                         default=512, help="output size of 1x1 conv network for mutual information estimation")
     parser.add_argument("--rep_size", type=int,
