@@ -129,6 +129,37 @@ def train(sdim, optimizer, hps):
         print('Test accuracy: {:.3f}'.format(np.mean(acc_list)))
 
 
+def inference(sdim, hps):
+    torch.manual_seed(hps.seed)
+    np.random.seed(hps.seed)
+
+    # Create log dir
+    logdir = os.path.abspath(hps.log_dir) + "/"
+    if not os.path.exists(logdir):
+        os.mkdir(logdir)
+
+    test_transform = transforms.Compose([transforms.Resize(256),
+                                         transforms.CenterCrop(224),
+                                         transforms.ToTensor(),
+                                         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])])
+
+    test_set = datasets.ImageNet(root='~/data', split='val', download=True, transform=test_transform)
+    test_loader = DataLoader(dataset=test_set, batch_size=hps.n_batch_test, shuffle=False,
+                             pin_memory=True, num_workers=8)
+
+    sdim.eval()
+    # Evaluate accuracy on test set.
+    acc_list = []
+    for batch_id, (x, y) in enumerate(test_loader):
+        x = x.to(hps.device)
+        y = y.to(hps.device)
+
+        preds = sdim(x).argmax(dim=1)
+        acc = (preds == y).float().mean()
+        acc_list.append(acc.item())
+    print('Test accuracy: {:.3f}'.format(np.mean(acc_list)))
+
+
 if __name__ == '__main__':
     # This enables a ctr-C without triggering errors
     import signal
@@ -205,4 +236,7 @@ if __name__ == '__main__':
 
     optimizer = Adam(filter(lambda param: param.requires_grad is True, sdim.parameters()), lr=hps.lr)
 
-    train(sdim, optimizer, hps)
+    if hps.inference:
+        inference(sdim, hps)
+    else:
+        train(sdim, optimizer, hps)
