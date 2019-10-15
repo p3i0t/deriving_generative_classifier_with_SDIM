@@ -27,9 +27,9 @@ class wrapped_model(torch.nn.Module):
     def forward(self, x):
         out_list = []
         out = self.f_conv(x)
-        out_list.append(out)
 
         out = self.pooling(out)
+        out_list.append(out)
         out = torch.squeeze(torch.squeeze(out, dim=3), dim=2)
         out = self.l(out)
         out_list.append(out)
@@ -97,10 +97,14 @@ def train(sdim, optimizer, hps):
             loss.backward()
             optimizer.step()
 
-            if batch_id % 500 == 1:
+            if batch_id % 10 == 1:
                 print('batch_id: ', batch_id)
-            if batch_id == 1000:
+                
+            if batch_id == 101:
                 break
+
+            #if batch_id == 1000:
+            #    break
 
             loss_list.append(loss.item())
             mi_list.append(mi_loss.item())
@@ -211,7 +215,7 @@ if __name__ == '__main__':
     parser.add_argument("--image_size", type=int,
                         default=224, help="Image size")
     parser.add_argument("--mi_units", type=int,
-                        default=512, help="output size of 1x1 conv network for mutual information estimation")
+                        default=256, help="output size of 1x1 conv network for mutual information estimation")
     parser.add_argument("--rep_size", type=int,
                         default=64, help="size of the global representation from encoder")
     parser.add_argument("--encoder_name", type=str, default='resnet25',
