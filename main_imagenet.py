@@ -177,15 +177,16 @@ def extract_features(classifier, train_loader, test_loader, hps):
         feature_list = []
         logits_list = []
         target_list = []
-        for batch_id, (x, y) in enumerate(loader):
-            x = x.to(hps.device)
-            y = y.to(hps.device)
+        with torch.no_grad():
+            for batch_id, (x, y) in enumerate(loader):
+                x = x.to(hps.device)
+                y = y.to(hps.device)
 
-            with torch.no_grad():
-                out_list = classifier(x)
-            feature_list.append(out_list[0])
-            logits_list.append(out_list[1])
-            target_list.append(y)
+                with torch.no_grad():
+                    out_list = classifier(x)
+                feature_list.append(out_list[0])
+                logits_list.append(out_list[1])
+                target_list.append(y)
 
         data_features = torch.cat(feature_list, dim=0)
         data_logits = torch.cat(logits_list, dim=0)
