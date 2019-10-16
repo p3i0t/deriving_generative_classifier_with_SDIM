@@ -6,11 +6,11 @@ import numpy as np
 import torch
 import torchvision.models as models
 from torchvision import datasets
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Dataset
 from torch.optim import Adam
 
 from sdim import SDIM
-from utils import get_dataset, cal_parameters
+from utils import cal_parameters, AverageMeter
 import torchvision.transforms as transforms
 
 
@@ -42,7 +42,116 @@ def get_model(model_name='resnext50_32x4d'):
     elif model_name == 'resnext50_32x4d':
         m = models.resnext50_32x4d(pretrained=True)
     print('Model name: {}, # parameters: {}'.format(model_name, cal_parameters(m)))
-    return wrapped_model(m)
+    return m
+
+
+def accuracy(output, target, topk=(1,)):
+    """Computes the accuracy over the k top predictions for the specified values of k"""
+    maxk = max(topk)
+    batch_size = target.size(0)
+
+    _, pred = output.topk(maxk, 1, True, True)
+    pred = pred.t()
+    correct = pred.eq(target.view(1, -1).expand_as(pred))
+
+    res = []
+    for k in topk:
+        correct_k = correct[:k].float().sum() / batch_size * 100
+        res.append(correct_k.item())
+    return res
+
+
+class FeatureSnapshotDataset(Dataset):
+    def __init__(self, snapshot, train=True):
+        key = 'train' if train else 'test'
+        self.features = snapshot[key]['features']
+        self.logits = snapshot[key]['logits']
+        self.targets = snapshot[key]['targets']
+        assert self.features.size(0) == self.logits.size(0) == self.targets.size(0)
+
+    def __len__(self):
+        return self.features.size(0)
+
+    def __getitem__(self, item):
+        return self.features[item], self.logits[item], self.targets[item]
+
+
+def train_epoch(sdim, optimizer, train_loader, hps):
+    """
+    One epoch training.
+    """
+    sdim.train()
+
+    # batch_time = AverageMeter('Time', ':6.3f')
+    # data_time = AverageMeter('Data', ':6.3f')
+    losses = AverageMeter('Loss', ':.4e')
+    MIs = AverageMeter('MI', ':.4e')
+    nlls = AverageMeter('NLL', ':.4e')
+    margins = AverageMeter('Margin', ':.4e')
+    top1 = AverageMeter('Acc@1', ':6.2f')
+    top5 = AverageMeter('Acc@5', ':6.2f')
+
+    for batch_id, (features, logits, y) in enumerate(train_loader):
+        features = features.to(hps.device)
+        logits = logits.to(hps.device)
+        y = y.to(hps.device)
+
+        optimizer.zero_grad()
+
+        if use_cuda and hps.n_gpu > 1:
+            f_forward = sdim.module.eval_losses
+        else:
+            f_forward = sdim.eval_losses
+
+        loss, mi_loss, nll_loss, ll_margin = f_forward(features, logits, y)
+
+        loss.backward()
+        optimizer.step()
+
+        # eval logits
+        log_lik = sdim(logits)
+        acc1, acc5 = accuracy(log_lik, y, topk=(1, 5))
+        losses.update(loss.item(), features.size(0))
+        top1.update(acc1, features.size(0))
+        top5.update(acc5, features.size(0))
+
+        MIs.update(mi_loss.item(), features.size(0))
+        nlls.update(nll_loss.item(), features.size(0))
+        margins.append(ll_margin.item(), features.size(0))
+
+    print('Train loss: {:.4f}, mi: {:.4f}, nll: {:.4f}, ll_margin: {:.4f}'.format(
+        losses.avg, MIs.avg, nlls.avg, margins.avg
+    ))
+    print('Train Acc@1: {:.2f}, Acc@2: {:.2f}'.format(top1.avg, top5.avg))
+
+    if losses.avg < hps.loss_optimal:
+        hps.loss_optimal = losses.avg
+        model_path = 'sdim_{}_{}_d{}.pth'.format(hps.classifier_name, hps.problem, hps.rep_size)
+        torch.save(sdim.state_dict(), os.path.join(hps.log_dir, model_path))
+
+
+def test_epoch(sdim, test_loader, hps):
+    """
+    One epoch testing.
+    """
+    sdim.eval()
+
+    top1 = AverageMeter('Acc@1', ':6.2f')
+    top5 = AverageMeter('Acc@5', ':6.2f')
+
+    with torch.no_grad():
+        for batch_id, (features, logits, y) in enumerate(test_loader):
+            features = features.to(hps.device)
+            logits = logits.to(hps.device)
+            y = y.to(hps.device)
+
+            # eval logits
+            log_lik = sdim(logits)
+            acc1, acc5 = accuracy(log_lik, y, topk=(1, 5))
+            top1.update(acc1, features.size(0))
+            top5.update(acc5, features.size(0))
+
+    print('Test Acc@1: {:.2f}, Acc@2: {:.2f}'.format(top1.avg, top5.avg))
 
 
 def train(sdim, optimizer, hps):
@@ -54,113 +163,45 @@ def train(sdim, optimizer, hps):
     if not os.path.exists(logdir):
         os.mkdir(logdir)
 
-    train_transform = transforms.Compose([transforms.RandomResizedCrop(224),
-                                          transforms.RandomHorizontalFlip(),
-                                          transforms.ToTensor(),
-                                          transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])])
-
-    test_transform = transforms.Compose([transforms.Resize(256),
-                                         transforms.CenterCrop(224),
-                                         transforms.ToTensor(),
-                                         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])])
-
-    train_set = datasets.ImageNet(root='~/data', split='train', download=True, transform=train_transform)
-    train_loader = DataLoader(dataset=train_set, batch_size=hps.n_batch_train, shuffle=True,
-                              pin_memory=True, num_workers=8)
-
-    test_set = datasets.ImageNet(root='~/data', split='val', download=True, transform=test_transform)
-    test_loader = DataLoader(dataset=test_set, batch_size=hps.n_batch_test, shuffle=False,
-                             pin_memory=True, num_workers=8)
-
-    min_loss = 1e3
+    hps.loss_optimal = 1e5
     for epoch in range(1, hps.epochs + 1):
-        sdim.train()
-        loss_list = []
-        mi_list = []
-        nll_list = []
-        margin_list = []
-
         print('===> Epoch: {}'.format(epoch))
-        for batch_id, (x, y) in enumerate(train_loader):
+        train_epoch(sdim, optimizer, train_loader, hps)
+        test_epoch(sdim, test_loader, hps)
+
+
+def extract_features(classifier, train_loader, test_loader, hps):
+    classifier.eval()
+
+    def f(loader):
+        feature_list = []
+        logits_list = []
+        target_list = []
+        for batch_id, (x, y) in enumerate(loader):
             x = x.to(hps.device)
             y = y.to(hps.device)
 
-            optimizer.zero_grad()
+            with torch.no_grad():
+                out_list = classifier(x)
+            feature_list.append(out_list[0])
+            logits_list.append(out_list[1])
+            target_list.append(y)
 
-            if use_cuda and hps.n_gpu > 1:
-                f_forward = sdim.module.eval_losses
-            else:
-                f_forward = sdim.eval_losses
+        data_features = torch.cat(feature_list, dim=0)
+        data_logits = torch.cat(logits_list, dim=0)
+        targets = torch.cat(target_list, dim=0)
 
-            loss, mi_loss, nll_loss, ll_margin = f_forward(x, y)
+        data_snapshot = {'features': data_features, 'logits': data_logits, 'targets': targets,
+                         'features_sizes': data_features.size()[1:], 'logits_sizes': data_logits.size()[1:]}
+        return data_snapshot
 
-            loss.backward()
-            optimizer.step()
+    train_set_snapshot = f(train_loader)
+    test_set_snapshot = f(test_loader)
+    snapshot = {'train': train_set_snapshot, 'test': test_set_snapshot}
 
-            if batch_id % 500 == 1:
-                print('batch_id: ', batch_id)
-            if batch_id == 1000:
-                break
-
-            loss_list.append(loss.item())
-            mi_list.append(mi_loss.item())
-            nll_list.append(nll_loss.item())
-            margin_list.append(ll_margin.item())
-
-        print('loss: {:.4f}, mi: {:.4f}, nll: {:.4f}, ll_margin: {:.4f}'.format(
-            np.mean(loss_list),
-            np.mean(mi_list),
-            np.mean(nll_list),
-            np.mean(margin_list)
-        ))
-
-        if np.mean(loss_list) < min_loss:
-            min_loss = np.mean(loss_list)
-            model_path = 'sdim_{}_{}_d{}.pth'.format(hps.classifier_name, hps.problem, hps.rep_size)
-            torch.save(sdim.state_dict(), os.path.join(hps.log_dir, model_path))
-
-        sdim.eval()
-        # Evaluate accuracy on test set.
-        acc_list = []
-        for batch_id, (x, y) in enumerate(test_loader):
-            x = x.to(hps.device)
-            y = y.to(hps.device)
-
-            preds = sdim(x).argmax(dim=1)
-            acc = (preds == y).float().mean()
-            acc_list.append(acc.item())
-        print('Test accuracy: {:.3f}'.format(np.mean(acc_list)))
-
-
-def inference(sdim, hps):
-    torch.manual_seed(hps.seed)
-    np.random.seed(hps.seed)
-
-    # Create log dir
-    logdir = os.path.abspath(hps.log_dir) + "/"
-    if not os.path.exists(logdir):
-        os.mkdir(logdir)
-
-    test_transform = transforms.Compose([transforms.Resize(256),
-                                         transforms.CenterCrop(224),
-                                         transforms.ToTensor(),
-                                         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])])
-
-    test_set = datasets.ImageNet(root='~/data', split='val', download=True, transform=test_transform)
-    test_loader = DataLoader(dataset=test_set, batch_size=hps.n_batch_test, shuffle=False,
-                             pin_memory=True, num_workers=8)
-
-    sdim.eval()
-    # Evaluate accuracy on test set.
-    acc_list = []
-    for batch_id, (x, y) in enumerate(test_loader):
-        x = x.to(hps.device)
-        y = y.to(hps.device)
-
-        preds = sdim(x).argmax(dim=1)
-        acc = (preds == y).float().mean()
-        acc_list.append(acc.item())
-    print('Test accuracy: {:.3f}'.format(np.mean(acc_list)))
+    snapshot_path = 'snapshot_{}_{}.pth'.format(hps.classifier_name, hps.problem)
+    torch.save(snapshot, os.path.join(hps.log_dir, snapshot_path))
+    return snapshot
 
 
 if __name__ == '__main__':
@@ -214,8 +255,8 @@ if __name__ == '__main__':
                         default=512, help="output size of 1x1 conv network for mutual information estimation")
     parser.add_argument("--rep_size", type=int,
                         default=64, help="size of the global representation from encoder")
-    parser.add_argument("--encoder_name", type=str, default='resnet25',
-                        help="encoder name: resnet#")
+    parser.add_argument("--classifier_name", type=str, default='resnext50_32x4d',
+                        help="name of discriminative classifier")
     parser.add_argument('--no-cuda', action='store_true', default=False,
                         help='disables CUDA training')
     parser.add_argument('--n_gpu', type=int, default=1, help='0 = CPU.')
@@ -229,17 +270,50 @@ if __name__ == '__main__':
 
     hps.device = torch.device("cuda" if use_cuda else "cpu")
 
-    hps.classifier_name = 'resnext50_32x4d'
-    m = get_model(model_name=hps.classifier_name).to(hps.device)
-    m = wrapped_model(m)
-    sdim = SDIM(disc_classifier=m, rep_size=hps.rep_size, mi_units=hps.mi_units, n_classes=hps.n_classes).to(hps.device)
+    # Extract features of classifiers as snapshots or load pre-extracted data snapshots.
+    snapshot_path = 'snapshot_{}_{}.pth'.format(hps.classifier_name, hps.problem)
+    if os.path.isfile(os.path.join(hps.log_dir, snapshot_path)):
+        data_snapshot = torch.load(os.path.join(hps.log_dir, snapshot_path))
+    else:
+        # Dataloaders
+        train_transform = transforms.Compose([transforms.RandomResizedCrop(224),
+                                              transforms.RandomHorizontalFlip(),
+                                              transforms.ToTensor(),
+                                              transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])])
+
+        test_transform = transforms.Compose([transforms.Resize(256),
+                                             transforms.CenterCrop(224),
+                                             transforms.ToTensor(),
+                                             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])])
+
+        train_set = datasets.ImageNet(root='~/data', split='train', download=True, transform=train_transform)
+        train_loader = DataLoader(dataset=train_set, batch_size=hps.n_batch_train, shuffle=True,
+                                  pin_memory=True, num_workers=8)
+
+        test_set = datasets.ImageNet(root='~/data', split='val', download=True, transform=test_transform)
+        test_loader = DataLoader(dataset=test_set, batch_size=hps.n_batch_test, shuffle=False,
+                                 pin_memory=True, num_workers=8)
+
+
+        # Models
+        classifier = get_model(model_name=hps.classifier_name).to(hps.device)
+        classifier = wrapped_model(classifier)
+        data_snapshot = extract_features(classifier, train_loader, test_loader, hps)
+
+    train_snapshot = FeatureSnapshotDataset(data_snapshot, train=True)
+    train_loader = DataLoader(dataset=train_snapshot, batch_size=hps.n_batch_train, shuffle=True,
+                              pin_memory=True, num_workers=8)
+
+    test_snapshot = FeatureSnapshotDataset(data_snapshot, train=False)
+    test_loader = DataLoader(dataset=test_snapshot, batch_size=hps.n_batch_test, shuffle=False,
+                             pin_memory=True, num_workers=8)
+
+    local_size = data_snapshot['train']['features_sizes'][0]
+    sdim = SDIM(local_feature_size=local_size, rep_size=hps.rep_size, mi_units=hps.mi_units, n_classes=hps.n_classes).to(hps.device)
 
     if use_cuda and hps.n_gpu > 1:
         sdim = torch.nn.DataParallel(sdim, device_ids=list(range(hps.n_gpu)))
 
     optimizer = Adam(filter(lambda param: param.requires_grad is True, sdim.parameters()), lr=hps.lr)
 
-    if hps.inference:
-        inference(sdim, hps)
-    else:
-        train(sdim, optimizer, hps)
+    train(sdim, optimizer, hps)
