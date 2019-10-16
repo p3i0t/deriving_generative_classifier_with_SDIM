@@ -129,9 +129,9 @@ class CifarResNeXt(nn.Module):
         x = self.stage_1.forward(x)
         x = self.stage_2.forward(x)
         x = self.stage_3.forward(x)
-        out_list.append(x)
 
         x = F.avg_pool2d(x, 8, 1)
+        out_list.append(x)
         x = x.view(-1, self.stages[3])
         x = self.classifier(x)
         out_list.append(x)
