@@ -273,8 +273,10 @@ if __name__ == '__main__':
     # Extract features of classifiers as snapshots or load pre-extracted data snapshots.
     snapshot_path = 'snapshot_{}_{}.pth'.format(hps.classifier_name, hps.problem)
     if os.path.isfile(os.path.join(hps.log_dir, snapshot_path)):
+        print('Loading pre-extracted data snapshot ...')
         data_snapshot = torch.load(os.path.join(hps.log_dir, snapshot_path))
     else:
+        print('Pre-extracted data snapshot not found, extracting ...')
         # Dataloaders
         train_transform = transforms.Compose([transforms.RandomResizedCrop(224),
                                               transforms.RandomHorizontalFlip(),
@@ -296,6 +298,7 @@ if __name__ == '__main__':
 
 
         # Models
+        print('Classifier name: {}'.format(hps.classifier_name))
         classifier = get_model(model_name=hps.classifier_name).to(hps.device)
         classifier = wrapped_model(classifier)
         data_snapshot = extract_features(classifier, train_loader, test_loader, hps)
