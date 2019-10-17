@@ -67,9 +67,9 @@ class FeatureSnapshotDataset(Dataset):
     def __init__(self, dir='', train=True):
         key = 'train' if train else 'test'
         data_path = os.path.join(dir, key)
-        self.features = pd.read_csv(os.path.join(data_path, 'features.csv'), iterator=True, header=None)
-        self.logits = pd.read_csv(os.path.join(data_path, 'logits.csv'), iterator=True, header=None)
-        self.targets = pd.read_csv(os.path.join(data_path, 'targets.csv'), iterator=True)
+        self.features = pd.read_csv(os.path.join(data_path, 'features.csv'), header=None)
+        self.logits = pd.read_csv(os.path.join(data_path, 'logits.csv'), header=None)
+        self.targets = pd.read_csv(os.path.join(data_path, 'targets.csv'), header=None)
         assert len(self.features) == len(self.logits) == len(self.targets)
 
     def __len__(self):
@@ -208,7 +208,6 @@ def extract_features(classifier, train_loader, test_loader, hps):
         np.savetxt(train_logits_file, logits, delimiter=',')
         np.savetxt(train_targets_file, targets, delimiter=',')
 
-
     # test data
     test_features_file = open(os.path.join(test_dir, 'features.csv'), 'ab')
     test_logits_file = open(os.path.join(test_dir, 'logits.csv'), 'ab')
@@ -296,11 +295,9 @@ if __name__ == '__main__':
     hps.device = torch.device("cuda" if use_cuda else "cpu")
 
     # Extract features of classifiers as snapshots or load pre-extracted data snapshots.
-    snapshot_path = 'snapshot_{}_{}.pth'.format(hps.classifier_name, hps.problem)
-    if os.path.isfile(os.path.join(hps.log_dir, snapshot_path)):
-        print('Loading pre-extracted data snapshot ...')
-        data_snapshot = torch.load(os.path.join(hps.log_dir, snapshot_path))
-    else:
+    snapshot_dir = '{}_{}_data_snapshot'.format(hps.problem, hps.classifier_name)
+    if not os.path.isdir(snapshot_dir):
+        # ToDo: this verification is weak.
         print('Pre-extracted data snapshot not found, extracting ...')
         # Dataloaders
         train_transform = transforms.Compose([transforms.RandomResizedCrop(224),
@@ -327,7 +324,7 @@ if __name__ == '__main__':
         classifier = wrapped_model(classifier)
         extract_features(classifier, train_loader, test_loader, hps)
 
-    snapshot_dir = '{}_{}_data_snapshot'.format(hps.problem, hps.classifier_name)
+    print('Loading data snapshot ...')
     train_snapshot = FeatureSnapshotDataset(dir=snapshot_dir, train=True)
     train_loader = DataLoader(dataset=train_snapshot, batch_size=hps.n_batch_train, shuffle=True,
                               pin_memory=True, num_workers=8)
