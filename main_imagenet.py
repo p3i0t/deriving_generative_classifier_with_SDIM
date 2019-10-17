@@ -28,9 +28,10 @@ class wrapped_model(torch.nn.Module):
     def forward(self, x):
         out_list = []
         out = self.f_conv(x)
-        out_list.append(out)
 
         out = self.pooling(out)
+        out_list.append(out)
+
         out = torch.squeeze(torch.squeeze(out, dim=3), dim=2)
         out = self.l(out)
         out_list.append(out)
@@ -220,7 +221,7 @@ def extract_features(classifier, train_loader, test_loader, hps):
 
         with torch.no_grad():
             out_list = classifier(x)
-        features = torch.squeeze(torch.squeeze(out_list[0], dim=3), dim=2).cpu().numpy()
+        features = torch.squeeze(torch.squeeze(out_list[0], dim=3), dim=2).cpu().numpy()  # squeeze to 2d tensor.
         logits = out_list[1].cpu().numpy()
         targets = y.cpu().numpy()
         np.savetxt(test_features_file, features, delimiter=',')
