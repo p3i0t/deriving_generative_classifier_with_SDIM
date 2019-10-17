@@ -2,6 +2,7 @@ import argparse
 import sys
 import os
 import numpy as np
+import pandas as pd
 
 import torch
 import torchvision.models as models
@@ -62,18 +63,20 @@ def accuracy(output, target, topk=(1,)):
 
 
 class FeatureSnapshotDataset(Dataset):
-    def __init__(self, snapshot, train=True):
+    def __init__(self, dir='', train=True):
         key = 'train' if train else 'test'
-        self.features = snapshot[key]['features']
-        self.logits = snapshot[key]['logits']
-        self.targets = snapshot[key]['targets']
-        assert self.features.size(0) == self.logits.size(0) == self.targets.size(0)
+        data_path = os.path.join(dir, key)
+        self.features = pd.read_csv(os.path.join(data_path, 'features.csv'), iterator=True, header=None)
+        self.logits = pd.read_csv(os.path.join(data_path, 'logits.csv'), iterator=True, header=None)
+        self.targets = pd.read_csv(os.path.join(data_path, 'targets.csv'), iterator=True)
+        assert len(self.features) == len(self.logits) == len(self.targets)
 
     def __len__(self):
-        return self.features.size(0)
+        return len(self.features)
 
     def __getitem__(self, item):
-        return self.features[item], self.logits[item], self.targets[item]
+        f = lambda x: torch.tensor(np.array(x))
+        return f(self.features.iloc[item]), f(self.logits.iloc[item]), f(self.targets.iloc[item]).long()
 
 
 def train_epoch(sdim, optimizer, train_loader, hps):
@@ -173,36 +176,56 @@ def train(sdim, optimizer, hps):
 def extract_features(classifier, train_loader, test_loader, hps):
     classifier.eval()
 
-    def f(loader):
-        feature_list = []
-        logits_list = []
-        target_list = []
+    snapshot_dir = '{}_{}_data_snapshot'.format(hps.problem, hps.classifier_name)
+    if not os.path.exists(snapshot_dir):
+        os.mkdir(snapshot_dir)
+
+    train_dir = os.path.join(snapshot_dir, 'train')
+    if not os.path.exists(train_dir):
+        os.mkdir(train_dir)
+
+    test_dir = os.path.join(snapshot_dir, 'test')
+    if not os.path.exists(test_dir):
+        os.mkdir(test_dir)
+
+    # train data
+    train_features_file = open(os.path.join(train_dir, 'features.csv'), 'ab')
+    train_logits_file = open(os.path.join(train_dir, 'logits.csv'), 'ab')
+    train_targets_file = open(os.path.join(train_dir, 'targets.csv'), 'ab')
+
+    print('Extracting train snapshot')
+    for batch_id, (x, y) in enumerate(train_loader):
+        x = x.to(hps.device)
+        y = y.to(hps.device)
+
         with torch.no_grad():
-            for batch_id, (x, y) in enumerate(loader):
-                x = x.to(hps.device)
-                y = y.to(hps.device)
+            out_list = classifier(x)
+        features = torch.squeeze(torch.squeeze(out_list[0], dim=3), dim=2).cpu().numpy()
+        logits = out_list[1].cpu().numpy()
+        targets = y.cpu().numpy()
+        np.savetxt(train_features_file, features, delimiter=',')
+        np.savetxt(train_logits_file, logits, delimiter=',')
+        np.savetxt(train_targets_file, targets, delimiter=',')
 
-                with torch.no_grad():
-                    out_list = classifier(x)
-                feature_list.append(out_list[0])
-                logits_list.append(out_list[1])
-                target_list.append(y)
 
-        data_features = torch.cat(feature_list, dim=0)
-        data_logits = torch.cat(logits_list, dim=0)
-        targets = torch.cat(target_list, dim=0)
+    # test data
+    test_features_file = open(os.path.join(test_dir, 'features.csv'), 'ab')
+    test_logits_file = open(os.path.join(test_dir, 'logits.csv'), 'ab')
+    test_targets_file = open(os.path.join(test_dir, 'targets.csv'), 'ab')
 
-        data_snapshot = {'features': data_features, 'logits': data_logits, 'targets': targets,
-                         'features_sizes': data_features.size()[1:], 'logits_sizes': data_logits.size()[1:]}
-        return data_snapshot
+    print('Extracting test snapshot')
+    for batch_id, (x, y) in enumerate(test_loader):
+        x = x.to(hps.device)
+        y = y.to(hps.device)
 
-    train_set_snapshot = f(train_loader)
-    test_set_snapshot = f(test_loader)
-    snapshot = {'train': train_set_snapshot, 'test': test_set_snapshot}
-
-    snapshot_path = 'snapshot_{}_{}.pth'.format(hps.classifier_name, hps.problem)
-    torch.save(snapshot, os.path.join(hps.log_dir, snapshot_path))
-    return snapshot
+        with torch.no_grad():
+            out_list = classifier(x)
+        features = torch.squeeze(torch.squeeze(out_list[0], dim=3), dim=2).cpu().numpy()
+        logits = out_list[1].cpu().numpy()
+        targets = y.cpu().numpy()
+        np.savetxt(test_features_file, features, delimiter=',')
+        np.savetxt(test_logits_file, logits, delimiter=',')
+        np.savetxt(test_targets_file, targets, delimiter=',')
 
 
 if __name__ == '__main__':
@@ -297,22 +320,22 @@ if __name__ == '__main__':
         test_loader = DataLoader(dataset=test_set, batch_size=hps.n_batch_test, shuffle=False,
                                  pin_memory=True, num_workers=8)
 
-
         # Models
         print('Classifier name: {}'.format(hps.classifier_name))
         classifier = get_model(model_name=hps.classifier_name).to(hps.device)
         classifier = wrapped_model(classifier)
-        data_snapshot = extract_features(classifier, train_loader, test_loader, hps)
+        extract_features(classifier, train_loader, test_loader, hps)
 
-    train_snapshot = FeatureSnapshotDataset(data_snapshot, train=True)
+    snapshot_dir = '{}_{}_data_snapshot'.format(hps.problem, hps.classifier_name)
+    train_snapshot = FeatureSnapshotDataset(dir=snapshot_dir, train=True)
     train_loader = DataLoader(dataset=train_snapshot, batch_size=hps.n_batch_train, shuffle=True,
                               pin_memory=True, num_workers=8)
 
-    test_snapshot = FeatureSnapshotDataset(data_snapshot, train=False)
+    test_snapshot = FeatureSnapshotDataset(dir=snapshot_dir, train=False)
     test_loader = DataLoader(dataset=test_snapshot, batch_size=hps.n_batch_test, shuffle=False,
                              pin_memory=True, num_workers=8)
 
-    local_size = data_snapshot['train']['features_sizes'][0]
+    local_size = train_snapshot[0][0].size(1)
     sdim = SDIM(local_feature_size=local_size, rep_size=hps.rep_size, mi_units=hps.mi_units, n_classes=hps.n_classes).to(hps.device)
 
     if use_cuda and hps.n_gpu > 1:
