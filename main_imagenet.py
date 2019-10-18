@@ -204,9 +204,9 @@ def extract_features(classifier, train_loader, test_loader, hps):
         features = torch.squeeze(torch.squeeze(out_list[0], dim=3), dim=2).cpu().numpy()
         logits = out_list[1].cpu().numpy()
         targets = y.cpu().numpy()
-        np.savetxt(train_features_file, features, delimiter=',')
-        np.savetxt(train_logits_file, logits, delimiter=',')
-        np.savetxt(train_targets_file, targets, delimiter=',')
+        np.savetxt(train_features_file, features, delimiter=',', fmt='%.4e')
+        np.savetxt(train_logits_file, logits, delimiter=',', fmt='%.4e')
+        np.savetxt(train_targets_file, targets, delimiter=',', fmt='%d')
 
     # test data
     test_features_file = open(os.path.join(test_dir, 'features.csv'), 'ab')
@@ -223,9 +223,9 @@ def extract_features(classifier, train_loader, test_loader, hps):
         features = torch.squeeze(torch.squeeze(out_list[0], dim=3), dim=2).cpu().numpy()  # squeeze to 2d tensor.
         logits = out_list[1].cpu().numpy()
         targets = y.cpu().numpy()
-        np.savetxt(test_features_file, features, delimiter=',')
-        np.savetxt(test_logits_file, logits, delimiter=',')
-        np.savetxt(test_targets_file, targets, delimiter=',')
+        np.savetxt(test_features_file, features, delimiter=',', fmt='%.4e')
+        np.savetxt(test_logits_file, logits, delimiter=',', fmt='%.4e')
+        np.savetxt(test_targets_file, targets, delimiter=',', fmt='%d')
 
 
 if __name__ == '__main__':
@@ -333,6 +333,8 @@ if __name__ == '__main__':
     test_loader = DataLoader(dataset=test_snapshot, batch_size=hps.n_batch_test, shuffle=False,
                              pin_memory=True, num_workers=8)
 
+    print(train_snapshot[0])
+    print(train_snapshot[0][0])
     local_size = train_snapshot[0][0].size(1)
     sdim = SDIM(local_feature_size=local_size, rep_size=hps.rep_size, mi_units=hps.mi_units, n_classes=hps.n_classes).to(hps.device)
 
