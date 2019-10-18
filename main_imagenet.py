@@ -76,7 +76,7 @@ class FeatureSnapshotDataset(Dataset):
         return len(self.features)
 
     def __getitem__(self, item):
-        f = lambda x: torch.tensor(np.array(x))
+        f = lambda x: torch.tensor(np.array(x)).float()
         return f(self.features.iloc[item]), f(self.logits.iloc[item]), f(self.targets.iloc[item]).long()
 
 
@@ -158,7 +158,7 @@ def test_epoch(sdim, test_loader, hps):
     print('Test Acc@1: {:.2f}, Acc@2: {:.2f}'.format(top1.avg, top5.avg))
 
 
-def train(sdim, optimizer, hps):
+def train(sdim, optimizer, train_loader, test_loader, hps):
     torch.manual_seed(hps.seed)
     np.random.seed(hps.seed)
 
@@ -326,14 +326,17 @@ if __name__ == '__main__':
 
     print('Loading data snapshot ...')
     train_snapshot = FeatureSnapshotDataset(dir=snapshot_dir, train=True)
+
     train_loader = DataLoader(dataset=train_snapshot, batch_size=hps.n_batch_train, shuffle=True,
                               pin_memory=True, num_workers=8)
 
     test_snapshot = FeatureSnapshotDataset(dir=snapshot_dir, train=False)
+    local_size = test_snapshot[0][0].size(0)
     test_loader = DataLoader(dataset=test_snapshot, batch_size=hps.n_batch_test, shuffle=False,
                              pin_memory=True, num_workers=8)
 
-    local_size = train_snapshot[0][0].size(1)
+    #a, b, c = next(iter(test_loader))
+    #print(a.size(), b.size(), c.size())
     sdim = SDIM(local_feature_size=local_size, rep_size=hps.rep_size, mi_units=hps.mi_units, n_classes=hps.n_classes).to(hps.device)
 
     if use_cuda and hps.n_gpu > 1:
@@ -341,4 +344,4 @@ if __name__ == '__main__':
 
     optimizer = Adam(filter(lambda param: param.requires_grad is True, sdim.parameters()), lr=hps.lr)
 
-    train(sdim, optimizer, hps)
+    train(sdim, optimizer, train_loader, test_loader, hps)
