@@ -75,8 +75,8 @@ class FeatureSnapshotDataset(Dataset):
 
     def __len__(self):
         chunks = os.listdir(self.data_path)
-        assert torch.load(chunks[0])['feature'].size(0) == self.chunk_size
-        return (len(chunks) - 1) * self.chunk_size + torch.load(chunks[-1])['feature'].size(0)
+        assert torch.load(os.path.join(self.data_path, chunks[0]))['feature'].size(0) == self.chunk_size
+        return (len(chunks) - 1) * self.chunk_size + torch.load(os.path.join(self.data_path, chunks[-1]))['feature'].size(0)
 
     def __getitem__(self, item):
         chunk_idx = item // self.chunk_size
