@@ -64,21 +64,26 @@ def accuracy(output, target, topk=(1,)):
 
 
 class FeatureSnapshotDataset(Dataset):
-    def __init__(self, dir='', train=True):
+    def __init__(self, dir='', train=True, chunk_size=200):
         key = 'train' if train else 'test'
         self.data_path = os.path.join(dir, key)
+        self.chunk_size = chunk_size
         # self.features = pd.read_csv(os.path.join(data_path, 'features.csv'), header=None)
         # self.logits = pd.read_csv(os.path.join(data_path, 'logits.csv'), header=None)
         # self.targets = pd.read_csv(os.path.join(data_path, 'targets.csv'), header=None)
         # assert len(self.features) == len(self.logits) == len(self.targets)
 
     def __len__(self):
-        return len(os.listdir(self.data_path))
+        chunks = os.listdir(self.data_path)
+        assert torch.load(chunks[0])['feature'].size(0) == self.chunk_size
+        return (len(chunks) - 1) * self.chunk_size + torch.load(chunks[-1])['feature'].size(0)
 
     def __getitem__(self, item):
-        sample_path = os.path.join(self.data_path, 'sample_{}.pt'.format(item))
-        sample = torch.load(sample_path)
-        return sample['feature'], sample['logit'], sample['target']
+        chunk_idx = item // self.chunk_size
+        idx = item % self.chunk_size
+        chunk_path = os.path.join(self.data_path, 'sample_{}.pt'.format(chunk_idx))
+        chunk = torch.load(chunk_path)
+        return chunk['feature'][idx], chunk['logit'][idx], chunk['target'][idx]
 
 
 def train_epoch(sdim, optimizer, train_loader, hps):
@@ -195,7 +200,6 @@ def extract_features(classifier, train_loader, test_loader, hps):
     # train_logits_file = open(os.path.join(train_dir, 'logits.csv'), 'ab')
     # train_targets_file = open(os.path.join(train_dir, 'targets.csv'), 'ab')
 
-    global_idx = 0
     print('Extracting train snapshot')
     for batch_id, (x, y) in enumerate(train_loader):
         x = x.to(hps.device)
@@ -204,14 +208,9 @@ def extract_features(classifier, train_loader, test_loader, hps):
         with torch.no_grad():
             out_list = classifier(x)
 
-        features = out_list[0].split(split_size=1, dim=0)
-        logits = out_list[1].split(split_size=1, dim=0)
-        targets = y.split(split_size=1, dim=0)
+        sample = {'feature': out_list[0], 'logit': out_list[1], 'target': y}
+        torch.save(sample, os.path.join(train_dir, 'sample_{}.pt'.format(batch_id)))
 
-        for idx, (feature, logit, target) in enumerate(zip(features, logits, targets)):
-            sample = {'feature': feature, 'logit': logit, 'target': target}
-            torch.save(sample, os.path.join(train_dir, 'sample_{}.pt'.format(global_idx)))
-            global_idx += 1
 
         # np.savetxt(train_features_file, features, delimiter=',', fmt='%.4e')
         # np.savetxt(train_logits_file, logits, delimiter=',', fmt='%.4e')
@@ -222,7 +221,6 @@ def extract_features(classifier, train_loader, test_loader, hps):
     # test_logits_file = open(os.path.join(test_dir, 'logits.csv'), 'ab')
     # test_targets_file = open(os.path.join(test_dir, 'targets.csv'), 'ab')
 
-    global_idx = 0
     print('Extracting test snapshot')
     for batch_id, (x, y) in enumerate(test_loader):
         x = x.to(hps.device)
@@ -231,14 +229,17 @@ def extract_features(classifier, train_loader, test_loader, hps):
         with torch.no_grad():
             out_list = classifier(x)
 
-        features = out_list[0].split(split_size=1, dim=0)
-        logits = out_list[1].split(split_size=1, dim=0)
-        targets = y.split(split_size=1, dim=0)
+        sample = {'feature': out_list[0], 'logit': out_list[1], 'target': y}
+        torch.save(sample, os.path.join(test_dir, 'sample_{}.pt'.format(batch_id)))
 
-        for idx, (feature, logit, target) in enumerate(zip(features, logits, targets)):
-            sample = {'feature': feature, 'logit': logit, 'target': target}
-            torch.save(sample, os.path.join(test_dir, 'sample_{}.pt'.format(global_idx)))
-            global_idx += 1
+        # features = out_list[0].split(split_size=1, dim=0)
+        # logits = out_list[1].split(split_size=1, dim=0)
+        # targets = y.split(split_size=1, dim=0)
+        #
+        # for idx, (feature, logit, target) in enumerate(zip(features, logits, targets)):
+        #     sample = {'feature': feature, 'logit': logit, 'target': target}
+        #     torch.save(sample, os.path.join(test_dir, 'sample_{}.pt'.format(global_idx)))
+        #     global_idx += 1
 
         # features = torch.squeeze(torch.squeeze(out_list[0], dim=3), dim=2).cpu().numpy()  # squeeze to 2d tensor.
         # logits = out_list[1].cpu().numpy()
@@ -268,6 +269,8 @@ if __name__ == '__main__':
                         help="Problem (mnist/fashion/cifar10")
     parser.add_argument("--n_classes", type=int,
                         default=1000, help="number of classes of dataset.")
+    parser.add_argument("--chunksize", type=int,
+                        default=200, help="chunk size for storage of data snapshot.")
     parser.add_argument("--data_dir", type=str, default='data',
                         help="Location of data")
 
@@ -331,11 +334,11 @@ if __name__ == '__main__':
                                              transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])])
 
         train_set = datasets.ImageNet(root='~/data', split='train', download=True, transform=train_transform)
-        train_loader = DataLoader(dataset=train_set, batch_size=hps.n_batch_train, shuffle=True,
+        train_loader = DataLoader(dataset=train_set, batch_size=hps.chunksize, shuffle=True,
                                   pin_memory=True, num_workers=8)
 
         test_set = datasets.ImageNet(root='~/data', split='val', download=True, transform=test_transform)
-        test_loader = DataLoader(dataset=test_set, batch_size=hps.n_batch_test, shuffle=False,
+        test_loader = DataLoader(dataset=test_set, batch_size=hps.chunksize, shuffle=False,
                                  pin_memory=True, num_workers=8)
 
         # Models
