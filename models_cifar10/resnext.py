@@ -123,7 +123,7 @@ class CifarResNeXt(nn.Module):
         return block
 
     def forward(self, x):
-        out_list = []
+        # out_list = []
         x = self.conv_1_3x3.forward(x)
         x = F.relu(self.bn_1.forward(x), inplace=True)
         x = self.stage_1.forward(x)
@@ -131,9 +131,10 @@ class CifarResNeXt(nn.Module):
         x = self.stage_3.forward(x)
 
         x = F.avg_pool2d(x, 8, 1)
-        out_list.append(x)
+        # out_list.append(x)
         x = x.view(-1, self.stages[3])
         x = self.classifier(x)
-        out_list.append(x)
-
-        return out_list
+        # out_list.append(x)
+        #
+        # return out_list
+        return x
