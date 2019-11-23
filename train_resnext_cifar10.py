@@ -17,7 +17,7 @@ import torch.nn.functional as F
 import torchvision.datasets as dset
 import torchvision.transforms as transforms
 from models_cifar10 import CifarResNeXt
-from utils import get_dataset, cal_parameters
+from utils import get_dataset, cal_parameters, clean_state_dict
 
 
 if __name__ == '__main__':
@@ -90,7 +90,7 @@ if __name__ == '__main__':
 
     # Init model, criterion, and optimizer
     net = CifarResNeXt(args.cardinality, args.depth, n_classes, args.base_width, args.widen_factor).to(args.device)
-    print('# classifier parameters: ', cal_parameters(net))
+    print('# Classifier parameters: ', cal_parameters(net))
 
     if use_cuda and args.n_gpu > 1:
         net = torch.nn.DataParallel(net, device_ids=list(range(args.n_gpu)))
@@ -119,10 +119,10 @@ if __name__ == '__main__':
         return np.mean(loss_list)
 
     # test function (forward only)
-    def test():
+    def inference(data_loader):
         net.eval()
         correct = 0
-        for batch_idx, (x, y) in enumerate(test_loader):
+        for batch_idx, (x, y) in enumerate(data_loader):
             x, y = x.to(args.device), y.to(args.device)
             # forward
             output = net(x)
@@ -131,22 +131,9 @@ if __name__ == '__main__':
             pred = output.max(1)[1]
             correct += float(pred.eq(y).sum())
 
-        test_accuracy = correct / len(test_loader.dataset)
+        test_accuracy = correct / len(data_loader.dataset)
         print('Test accuracy: {:.4f}'.format(test_accuracy))
         return test_accuracy
-
-
-    def clean_state_dict(state_dict):
-        # see https://discuss.pytorch.org/t/solved-keyerror-unexpected-key-module-encoder-embedding-weight-in-state-dict/1686/3
-        from collections import OrderedDict
-        new_state_dict = OrderedDict()
-        for k, v in state_dict.items():
-            assert k.startswith('module.')
-            name = k[7:]  # remove `module.`
-            new_state_dict[name] = v
-        # load params
-        return new_state_dict
-
 
     for epoch in range(args.epochs):
         if epoch in args.schedule:
@@ -156,14 +143,25 @@ if __name__ == '__main__':
 
         train_loss = train()
         print('Epoch: {}, training loss: {:.4f}.'.format(epoch + 1, train_loss))
+
+        train_accuracy = inference(train_loader)
+        print("Train accuracy: {:.4f}".format(train_accuracy))
+
+        test_accuracy = inference(test_loader)
+        print("Test accuracy: {:.4f}".format(test_accuracy))
+
         if train_loss < best_train_loss:
             save_name = 'ResNeXt{}_{}x{}d.pth'.format(args.depth, args.cardinality, args.base_width)
 
             if use_cuda and args.n_gpu > 1:
                 state = net.module.state_dict()
+                state = clean_state_dict(state)
             else:
                 state = net.state_dict()
-            torch.save(clean_state_dict(state), os.path.join(args.save, save_name))
 
-        test_accuracy = test()
-        print("Test accuracy: {:.4f}".format(test_accuracy))
+            check_point = {'model_state': state, 'train_acc': train_accuracy, 'test_acc': test_accuracy}
+
+            torch.save(check_point, os.path.join(args.save, save_name))
+            print("Saving new checkpoint ...")
+
+

@@ -79,22 +79,21 @@ class FeatureTransformer(nn.Module):
 
 
 class SDIM(torch.nn.Module):
-    def __init__(self, local_feature_size, rep_size=64, n_classes=1000, mi_units=512, margin=4.):
+    def __init__(self, disc_classifier, rep_size=64, n_classes=1000, mi_units=512, margin=5.):
         super().__init__()
-        # self.disc_classifier = disc_classifier
-        # self.disc_classifier.requires_grad_(requires_grad=False)  # shut down grad on pre-trained classifier.
-        # self.disc_classifier.eval()  # set to eval mode.
+        self.disc_classifier = disc_classifier
+        self.disc_classifier.requires_grad_(requires_grad=False)  # shut down grad on pre-trained classifier.
+        self.disc_classifier.eval()  # set to eval mode.
 
         self.rep_size = rep_size
         self.n_classes = n_classes
         self.mi_units = mi_units
         self.margin = margin
 
-        self.local_size = local_feature_size
         self.feature_transformer = FeatureTransformer(self.n_classes, self.rep_size)
 
         # 1x1 conv performed on only channel dimension
-        self.local_MInet = MI1x1ConvNet(self.local_size, self.mi_units)
+        self.local_MInet = MI1x1ConvNet(self.n_classes, self.mi_units)
         self.global_MInet = MI1x1ConvNet(self.rep_size, self.mi_units)
 
         self.class_conditional = ClassConditionalGaussianMixture(self.n_classes, self.rep_size)
@@ -105,12 +104,10 @@ class SDIM(torch.nn.Module):
         print('==>  # class conditional parameters: {}.'.format(cal_parameters(self.class_conditional)))
 
     def _T(self, L, G):
-        # L, G = [out_list[i] for i in self.task_idx]
-
         # All globals are reshaped as 1x1 feature maps.
         global_size = G.size()[1:]
         if len(global_size) == 1:
-            # L = L[:, :, None, None]
+            L = L[:, :, None, None]
             G = G[:, :, None, None]
 
         L = self.local_MInet(L)
@@ -121,18 +118,20 @@ class SDIM(torch.nn.Module):
         G = G.view(N, local_units, -1)
         return L, G
 
-    def eval_losses(self, feature, logits, y, measure='JSD', mode='fd'):
+    def eval_losses(self, x, y, measure='JSD', mode='fd'):
+        logits = self.disc_classifier(x)
+
         rep = self.feature_transformer(logits)
-        L, G = self._T(feature, rep)
 
         # compute mutual infomation loss
+        L, G = self._T(logits, rep)
         mi_loss = compute_dim_loss(L, G, measure, mode)
 
         # evaluate log-likelihoods as logits
         ll = self.class_conditional(rep) / self.rep_size
 
         # mask of positive class conditional likelihood
-        pos_mask = torch.zeros(feature.size(0), self.n_classes).to(feature.device).scatter(1, y.unsqueeze(dim=1), 1.)
+        pos_mask = torch.zeros(logits.size(0), self.n_classes).to(logits.device).scatter(1, y.unsqueeze(dim=1), 1.)
 
         # compute nll loss
         nll_loss = -(ll * pos_mask).sum(dim=1).mean()
@@ -146,14 +145,13 @@ class SDIM(torch.nn.Module):
         ll_margin = F.relu(self.margin - gap_ll).mean()
 
         # total loss
-        loss = mi_loss + 0.1 * nll_loss + 0.1 * ll_margin
+        loss = mi_loss + 0.1 *nll_loss + 0.1 * ll_margin
         return loss, mi_loss, nll_loss, ll_margin
 
-    def forward(self, logits, log_softmax=False):
+    def forward(self, x):
+        logits = self.disc_classifier(x)
         rep = self.feature_transformer(logits)
         log_lik = self.class_conditional(rep)
-        if log_softmax:
-            return F.log_softmax(log_lik, dim=-1)
         return log_lik
 
 

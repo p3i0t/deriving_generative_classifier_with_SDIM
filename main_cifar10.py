@@ -13,24 +13,11 @@ import os
 import numpy as np
 
 import torch
-import torch.nn.functional as F
 import torchvision.datasets as dset
 import torchvision.transforms as transforms
 from models_cifar10 import CifarResNeXt
 from sdim import SDIM
-from utils import get_dataset, cal_parameters
-
-
-def clean_state_dict(state_dict):
-    # see https://discuss.pytorch.org/t/solved-keyerror-unexpected-key-module-encoder-embedding-weight-in-state-dict/1686/3
-    from collections import OrderedDict
-    new_state_dict = OrderedDict()
-    for k, v in state_dict.items():
-        assert k.startswith('module.')
-        name = k[7:]  # remove `module.`
-        new_state_dict[name] = v
-    # load params
-    return new_state_dict
+from utils import get_dataset, cal_parameters, clean_state_dict
 
 
 if __name__ == '__main__':
@@ -114,10 +101,14 @@ if __name__ == '__main__':
 
     # Init model, criterion, and optimizer
     classifier = CifarResNeXt(args.cardinality, args.depth, args.n_classes, args.base_width, args.widen_factor).to(args.device)
-    print('# classifier parameters: ', cal_parameters(classifier))
+    print('# Classifier parameters: ', cal_parameters(classifier))
 
     save_name = 'ResNeXt{}_{}x{}d.pth'.format(args.depth, args.cardinality, args.base_width)
-    classifier.load_state_dict(clean_state_dict(torch.load(os.path.join(args.save, save_name))))
+    check_point = torch.load(os.path.join(args.save, save_name))
+    classifier.load_state_dict(check_point['model_state'])
+
+    train_acc = check_point['train_acc']
+    test_acc = check_point['test_acc']
 
     sdim = SDIM(disc_classifier=classifier, rep_size=args.rep_size, mi_units=args.mi_units, n_classes=args.n_classes).to(args.device)
 
@@ -166,10 +157,10 @@ if __name__ == '__main__':
         return np.mean(loss_list)
 
     # test function (forward only)
-    def test():
+    def inference(data_loader):
         sdim.eval()
         acc_list = []
-        for batch_idx, (x, y) in enumerate(test_loader):
+        for batch_idx, (x, y) in enumerate(data_loader):
             x, y = x.to(args.device), y.to(args.device)
 
             preds = sdim(x).argmax(dim=1)
@@ -177,23 +168,28 @@ if __name__ == '__main__':
             acc_list.append(acc.item())
 
         test_accuracy = np.mean(acc_list)
-        print('Test accuracy: {:.4f}'.format(test_accuracy))
         return test_accuracy
 
     for epoch in range(args.epochs):
         print('===> Epoch: {}'.format(epoch + 1))
         train_loss = train()
-        test_accuracy = test()
+
+        train_accuracy = inference(train_loader)
+        test_accuracy = inference(test_loader)
 
         if train_loss > best_train_loss:
             best_accuracy = test_accuracy
             save_name = 'SDIM_ResNeXt{}_{}x{}d.pth'.format(args.depth, args.cardinality, args.base_width)
+
             if use_cuda and args.n_gpu > 1:
                 state = sdim.module.state_dict()
+                state = clean_state_dict(state)
             else:
                 state = sdim.state_dict()
 
-            torch.save(state, os.path.join(args.save, save_name))
-        print("Best accuracy: {:.4f}".format(test_accuracy))
+            check_point = {'model_state': state, 'train_acc': train_accuracy, 'test_acc': test_accuracy}
+
+            torch.save(check_point, os.path.join(args.save, save_name))
+            print("Saving checkpoint, train acc: {:.4f}, test acc: {:.4f}".format(train_accuracy, test_accuracy))
 
 
