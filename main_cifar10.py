@@ -109,6 +109,7 @@ if __name__ == '__main__':
 
     train_acc = check_point['train_acc']
     test_acc = check_point['test_acc']
+    print('Original Discriminative Classifier, train acc: {:.4f}, test acc: {:.4f}'.format(train_acc, test_acc))
 
     sdim = SDIM(disc_classifier=classifier, rep_size=args.rep_size, mi_units=args.mi_units, n_classes=args.n_classes).to(args.device)
 
@@ -183,7 +184,6 @@ if __name__ == '__main__':
 
             if use_cuda and args.n_gpu > 1:
                 state = sdim.module.state_dict()
-                state = clean_state_dict(state)
             else:
                 state = sdim.state_dict()
 

@@ -132,7 +132,6 @@ if __name__ == '__main__':
             correct += float(pred.eq(y).sum())
 
         test_accuracy = correct / len(data_loader.dataset)
-        print('Test accuracy: {:.4f}'.format(test_accuracy))
         return test_accuracy
 
     for epoch in range(args.epochs):
@@ -155,7 +154,7 @@ if __name__ == '__main__':
 
             if use_cuda and args.n_gpu > 1:
                 state = net.module.state_dict()
-                state = clean_state_dict(state)
+                # state = clean_state_dict(state)
             else:
                 state = net.state_dict()
 
