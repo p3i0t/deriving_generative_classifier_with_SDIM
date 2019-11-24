@@ -119,7 +119,8 @@ class SDIM(torch.nn.Module):
         return L, G
 
     def eval_losses(self, x, y, measure='JSD', mode='fd'):
-        logits = self.disc_classifier(x)
+        with torch.no_grad():
+            logits = self.disc_classifier(x)
 
         rep = self.feature_transformer(logits)
 
@@ -149,7 +150,8 @@ class SDIM(torch.nn.Module):
         return loss, mi_loss, nll_loss, ll_margin
 
     def forward(self, x):
-        logits = self.disc_classifier(x)
+        with torch.no_grad():
+            logits = self.disc_classifier(x)
         rep = self.feature_transformer(logits)
         log_lik = self.class_conditional(rep)
         return log_lik
