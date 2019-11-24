@@ -150,11 +150,11 @@ if __name__ == '__main__':
         print("Test accuracy: {:.4f}".format(test_accuracy))
 
         if train_loss < best_train_loss:
+            best_train_loss = train_loss
             save_name = 'ResNeXt{}_{}x{}d.pth'.format(args.depth, args.cardinality, args.base_width)
 
             if use_cuda and args.n_gpu > 1:
                 state = net.module.state_dict()
-                # state = clean_state_dict(state)
             else:
                 state = net.state_dict()
 

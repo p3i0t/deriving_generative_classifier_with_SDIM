@@ -120,7 +120,6 @@ if __name__ == '__main__':
         sdim = torch.nn.DataParallel(sdim, device_ids=list(range(args.n_gpu)))
 
     best_train_loss = np.inf
-    best_accuracy = 0.
 
     # train function (forward, backward, update)
     def train():
@@ -178,8 +177,8 @@ if __name__ == '__main__':
         train_accuracy = inference(train_loader)
         test_accuracy = inference(test_loader)
 
-        if train_loss > best_train_loss:
-            best_accuracy = test_accuracy
+        if train_loss < best_train_loss:
+            best_train_loss = train_loss
             save_name = 'SDIM_ResNeXt{}_{}x{}d.pth'.format(args.depth, args.cardinality, args.base_width)
 
             if use_cuda and args.n_gpu > 1:
