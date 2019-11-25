@@ -131,17 +131,17 @@ def cal_parameters(model):
         cnt += para.numel()
     return cnt
 
-
-def clean_state_dict(state_dict):
-    # see https://discuss.pytorch.org/t/solved-keyerror-unexpected-key-module-encoder-embedding-weight-in-state-dict/1686/3
-    from collections import OrderedDict
-    new_state_dict = OrderedDict()
-    for k, v in state_dict.items():
-        assert k.startswith('module.')
-        name = k[7:]  # remove `module.`
-        new_state_dict[name] = v
-    # load params
-    return new_state_dict
+#
+# def clean_state_dict(state_dict):
+#     # see https://discuss.pytorch.org/t/solved-keyerror-unexpected-key-module-encoder-embedding-weight-in-state-dict/1686/3
+#     from collections import OrderedDict
+#     new_state_dict = OrderedDict()
+#     for k, v in state_dict.items():
+#         assert k.startswith('module.')
+#         name = k[7:]  # remove `module.`
+#         new_state_dict[name] = v
+#     # load params
+#     return new_state_dict
 
 
 if __name__ == '__main__':

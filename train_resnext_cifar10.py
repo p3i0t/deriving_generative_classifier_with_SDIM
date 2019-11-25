@@ -17,7 +17,7 @@ import torch.nn.functional as F
 import torchvision.datasets as dset
 import torchvision.transforms as transforms
 from models_cifar10 import CifarResNeXt
-from utils import get_dataset, cal_parameters, clean_state_dict
+from utils import cal_parameters
 
 
 if __name__ == '__main__':
