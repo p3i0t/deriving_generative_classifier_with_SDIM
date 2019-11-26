@@ -117,22 +117,22 @@ if __name__ == '__main__':
                                          transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])])
 
     train_set = datasets.ImageNet(root='~/data', split='train', download=True, transform=train_transform)
-    train_loader = DataLoader(dataset=train_set, batch_size=hps.chunksize, shuffle=True,
+    train_loader = DataLoader(dataset=train_set, batch_size=hps.n_batch_train, shuffle=True,
                               pin_memory=True, num_workers=8)
 
     test_set = datasets.ImageNet(root='~/data', split='val', download=True, transform=test_transform)
-    test_loader = DataLoader(dataset=test_set, batch_size=hps.chunksize, shuffle=False,
+    test_loader = DataLoader(dataset=test_set, batch_size=hps.n_batch_test, shuffle=False,
                              pin_memory=True, num_workers=8)
 
     # Models
     print('Classifier name: {}'.format(hps.classifier_name))
     classifier = get_model(model_name=hps.classifier_name).to(hps.device)
-
-    train_loader = DataLoader(dataset=train_loader, batch_size=hps.n_batch_train, shuffle=True,
-                              pin_memory=True, num_workers=8)
-
-    test_loader = DataLoader(dataset=test_loader, batch_size=hps.n_batch_test, shuffle=False,
-                             pin_memory=True, num_workers=8)
+    #
+    # train_loader = DataLoader(dataset=train_loader, batch_size=hps.n_batch_train, shuffle=True,
+    #                           pin_memory=True, num_workers=8)
+    #
+    # test_loader = DataLoader(dataset=test_loader, batch_size=hps.n_batch_test, shuffle=False,
+    #                          pin_memory=True, num_workers=8)
 
     sdim = SDIM(disc_classifier=classifier, rep_size=hps.rep_size, mi_units=hps.mi_units, n_classes=hps.n_classes).to(hps.device)
 
