@@ -17,7 +17,7 @@ import torchvision.datasets as dset
 import torchvision.transforms as transforms
 from models_cifar10 import CifarResNeXt
 from sdim import SDIM
-from utils import get_dataset, cal_parameters, clean_state_dict
+from utils import cal_parameters
 
 
 if __name__ == '__main__':
@@ -179,7 +179,8 @@ if __name__ == '__main__':
 
         if train_loss < best_train_loss:
             best_train_loss = train_loss
-            save_name = 'SDIM_ResNeXt{}_{}x{}d.pth'.format(args.depth, args.cardinality, args.base_width)
+            model_name = 'SDIM_ResNeXt{}_{}x{}d'.format(args.depth, args.cardinality, args.base_width)
+            save_name = 'SDIM_{}_{}_MI{}_rep{}.pth'.format(model_name, args.dataset, args.mi_units, args.rep_size)
 
             if use_cuda and args.n_gpu > 1:
                 state = sdim.module.state_dict()
