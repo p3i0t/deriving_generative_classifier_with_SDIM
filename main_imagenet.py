@@ -186,7 +186,7 @@ if __name__ == '__main__':
 
             MIs.update(mi_loss.item(), x.size(0))
             nlls.update(nll_loss.item(), x.size(0))
-            margins.append(ll_margin.item(), x.size(0))
+            margins.update(ll_margin.item(), x.size(0))
 
         print('Train loss: {:.4f}, mi: {:.4f}, nll: {:.4f}, ll_margin: {:.4f}'.format(
             losses.avg, MIs.avg, nlls.avg, margins.avg
