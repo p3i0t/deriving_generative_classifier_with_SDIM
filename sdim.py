@@ -81,7 +81,7 @@ class FeatureTransformer(nn.Module):
 class SDIM(torch.nn.Module):
     def __init__(self, disc_classifier, rep_size=64, n_classes=1000, mi_units=512, margin=5.):
         super().__init__()
-        self.disc_classifier = disc_classifier
+        self.disc_classifier = disc_classifier.half()  # Use half-precision for saving memory and time.
         self.disc_classifier.requires_grad_(requires_grad=False)  # shut down grad on pre-trained classifier.
         self.disc_classifier.eval()  # set to eval mode.
 
@@ -120,7 +120,7 @@ class SDIM(torch.nn.Module):
 
     def eval_losses(self, x, y, measure='JSD', mode='fd'):
         with torch.no_grad():
-            logits = self.disc_classifier(x)
+            logits = self.disc_classifier(x.half()).float()
 
         rep = self.feature_transformer(logits)
 
@@ -151,7 +151,7 @@ class SDIM(torch.nn.Module):
 
     def forward(self, x):
         with torch.no_grad():
-            logits = self.disc_classifier(x)
+            logits = self.disc_classifier(x.half()).float()
         rep = self.feature_transformer(logits)
         log_lik = self.class_conditional(rep)
         return log_lik

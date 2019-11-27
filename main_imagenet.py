@@ -118,23 +118,21 @@ if __name__ == '__main__':
 
     train_set = datasets.ImageNet(root='~/data', split='train', download=True, transform=train_transform)
     train_loader = DataLoader(dataset=train_set, batch_size=hps.n_batch_train, shuffle=True,
-                              pin_memory=True, num_workers=8)
+                              pin_memory=True, num_workers=16)
 
     test_set = datasets.ImageNet(root='~/data', split='val', download=True, transform=test_transform)
     test_loader = DataLoader(dataset=test_set, batch_size=hps.n_batch_test, shuffle=False,
-                             pin_memory=True, num_workers=8)
+                             pin_memory=True, num_workers=16)
 
     # Models
     print('Classifier name: {}'.format(hps.classifier_name))
     classifier = get_model(model_name=hps.classifier_name).to(hps.device)
-    #
-    # train_loader = DataLoader(dataset=train_loader, batch_size=hps.n_batch_train, shuffle=True,
-    #                           pin_memory=True, num_workers=8)
-    #
-    # test_loader = DataLoader(dataset=test_loader, batch_size=hps.n_batch_test, shuffle=False,
-    #                          pin_memory=True, num_workers=8)
 
-    sdim = SDIM(disc_classifier=classifier, rep_size=hps.rep_size, mi_units=hps.mi_units, n_classes=hps.n_classes).to(hps.device)
+    sdim = SDIM(disc_classifier=classifier,
+                rep_size=hps.rep_size,
+                mi_units=hps.mi_units,
+                n_classes=hps.n_classes,
+                margin=3).to(hps.device)
 
     if use_cuda and hps.n_gpu > 1:
         sdim = torch.nn.DataParallel(sdim, device_ids=list(range(hps.n_gpu)))
